@@ -1,0 +1,94 @@
+version: '3.1'
+
+services:
+  spot-db:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: example
+    ports:
+      - 5432:5432
+    volumes:
+      - ./docker-entrypoint-initdb.d/init-spots.sql:/docker-entrypoint-initdb.d/init.sql
+  comment-db:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: example
+    ports:
+      - 5433:5432
+    volumes:
+      - ./docker-entrypoint-initdb.d/init-comments.sql:/docker-entrypoint-initdb.d/init.sql
+  query-db:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: example
+    ports:
+      - 5434:5432
+    volumes:
+      - ./docker-entrypoint-initdb.d/init-query.sql:/docker-entrypoint-initdb.d/init.sql
+  zookeeper:
+    image: 'bitnami/zookeeper:latest'
+    ports:
+      - '2181:2181'
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+  kafka:
+    image: 'bitnami/kafka:latest'
+    ports:
+      - '9092:9092'
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_LISTENERS=PLAINTEXT://:9092
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    depends_on:
+      - zookeeper
+  spots-service:
+    image: coffee51/spotty-spots-svc
+    ports: 
+      - 8080:8080
+    restart: on-failure
+    environment:
+      DB_URL: jdbc:postgresql://host.docker.internal:5432/postgres
+      DB_USER: postgres
+      DB_PASSWORD: example
+      KAFKA_BOOTSTRAP_SERVER: kafka:9092
+      KAFKA_TOPIC_SPOTCREATED: spot-created
+      KAFKA_TOPIC_SPOTUPDATED: spot-updated
+      KAFKA_TOPIC_SPOTDELETED: spot-deleted
+  comments-service:
+    image: coffee51/spotty-comments-svc
+    ports: 
+      - 8081:8080
+    restart: on-failure
+    environment:
+      DB_URL: jdbc:postgresql://host.docker.internal:5433/postgres
+      DB_USER: postgres
+      DB_PASSWORD: example
+      KAFKA_BOOTSTRAP_SERVER: kafka:9092
+      KAFKA_TOPIC_SPOTCREATED: spot-created
+      KAFKA_TOPIC_SPOTUPDATED: spot-updated
+      KAFKA_TOPIC_SPOTDELETED: spot-deleted
+      KAFKA_GROUP_ID: comments-svc-consumer
+      KAFKA_TOPIC_COMMENTCREATED: comment-created
+      KAFKA_TOPIC_COMMENTUPDATED: comment-updated
+      KAFKA_TOPIC_COMMENTDELETED: comment-deleted
+  query-service:
+    image: coffee51/spotty-query-svc
+    ports: 
+      - 8082:8080
+    restart: on-failure
+    environment:
+      DB_URL: jdbc:postgresql://host.docker.internal:5434/postgres
+      DB_USER: postgres
+      DB_PASSWORD: example
+      KAFKA_BOOTSTRAP_SERVER: kafka:9092
+      KAFKA_TOPIC_SPOTCREATED: spot-created
+      KAFKA_TOPIC_SPOTUPDATED: spot-updated
+      KAFKA_TOPIC_SPOTDELETED: spot-deleted
+      KAFKA_GROUP_ID: query-svc-consumer
+      KAFKA_TOPIC_COMMENTCREATED: comment-created
+      KAFKA_TOPIC_COMMENTUPDATED: comment-updated
+      KAFKA_TOPIC_COMMENTDELETED: comment-deleted
